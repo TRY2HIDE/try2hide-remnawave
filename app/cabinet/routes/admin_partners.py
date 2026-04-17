@@ -50,6 +50,7 @@ class PartnerSettingsResponse(BaseModel):
     partner_section_visible: bool
     referral_program_enabled: bool
     registration_bonus_kopeks: int
+    registration_new_user_bonus_kopeks: int
 
 
 class PartnerSettingsUpdateRequest(BaseModel):
@@ -60,6 +61,7 @@ class PartnerSettingsUpdateRequest(BaseModel):
     partner_section_visible: bool | None = None
     referral_program_enabled: bool | None = None
     registration_bonus_kopeks: int | None = Field(None, ge=0, le=100_000_000)
+    registration_new_user_bonus_kopeks: int | None = Field(None, ge=0, le=100_000_000)
 
 
 def _build_partner_settings_response() -> PartnerSettingsResponse:
@@ -71,6 +73,7 @@ def _build_partner_settings_response() -> PartnerSettingsResponse:
         partner_section_visible=settings.REFERRAL_PARTNER_SECTION_VISIBLE,
         referral_program_enabled=settings.REFERRAL_PROGRAM_ENABLED,
         registration_bonus_kopeks=settings.REFERRAL_REGISTRATION_BONUS_KOPEKS,
+        registration_new_user_bonus_kopeks=settings.REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS,
     )
 
 
@@ -106,6 +109,8 @@ async def update_partner_settings(
         settings.REFERRAL_PROGRAM_ENABLED = request.referral_program_enabled
     if request.registration_bonus_kopeks is not None:
         settings.REFERRAL_REGISTRATION_BONUS_KOPEKS = request.registration_bonus_kopeks
+    if request.registration_new_user_bonus_kopeks is not None:
+        settings.REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS = request.registration_new_user_bonus_kopeks
 
     # Persist to .env file
     try:
@@ -132,6 +137,10 @@ async def update_partner_settings(
                 updates['REFERRAL_PROGRAM_ENABLED'] = str(request.referral_program_enabled).lower()
             if request.registration_bonus_kopeks is not None:
                 updates['REFERRAL_REGISTRATION_BONUS_KOPEKS'] = str(request.registration_bonus_kopeks)
+            if request.registration_new_user_bonus_kopeks is not None:
+                updates['REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS'] = str(
+                    request.registration_new_user_bonus_kopeks
+                )
 
             new_lines = []
             updated_keys: set[str] = set()

@@ -237,6 +237,7 @@ class Settings(BaseSettings):
     REFERRAL_FIRST_TOPUP_BONUS_KOPEKS: int = 10000
     REFERRAL_INVITER_BONUS_KOPEKS: int = 10000
     REFERRAL_REGISTRATION_BONUS_KOPEKS: int = 0
+    REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS: int = 0
     REFERRAL_COMMISSION_PERCENT: int = 25
     REFERRAL_MAX_COMMISSION_PAYMENTS: int = 0  # Макс. кол-во платежей реферала с комиссией (0 = без лимита)
 
@@ -2400,6 +2401,7 @@ class Settings(BaseSettings):
             'first_topup_bonus_kopeks': self.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS,
             'inviter_bonus_kopeks': self.REFERRAL_INVITER_BONUS_KOPEKS,
             'registration_bonus_kopeks': self.REFERRAL_REGISTRATION_BONUS_KOPEKS,
+            'registration_new_user_bonus_kopeks': self.REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS,
             'commission_percent': self.REFERRAL_COMMISSION_PERCENT,
             'notifications_enabled': self.REFERRAL_NOTIFICATIONS_ENABLED,
             'withdrawal_enabled': self.REFERRAL_WITHDRAWAL_ENABLED,

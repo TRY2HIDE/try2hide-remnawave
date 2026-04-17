@@ -97,6 +97,14 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
             ).format(bonus=texts.format_price(settings.REFERRAL_REGISTRATION_BONUS_KOPEKS))
         )
 
+    if settings.REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS > 0:
+        reward_lines.append(
+            texts.t(
+                'REFERRAL_REWARD_REGISTRATION_NEW_USER',
+                '• Новый пользователь получает сразу после регистрации: <b>{bonus}</b>',
+            ).format(bonus=texts.format_price(settings.REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS))
+        )
+
     if settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS > 0:
         reward_lines.append(
             texts.t(

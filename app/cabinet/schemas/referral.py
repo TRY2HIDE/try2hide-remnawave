@@ -84,5 +84,7 @@ class ReferralTermsResponse(BaseModel):
     inviter_bonus_rubles: float
     registration_bonus_kopeks: int = 0
     registration_bonus_rubles: float = 0
+    registration_new_user_bonus_kopeks: int = 0
+    registration_new_user_bonus_rubles: float = 0
     max_commission_payments: int = 0
     partner_section_visible: bool = True

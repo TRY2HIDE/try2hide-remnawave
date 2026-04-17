@@ -2930,6 +2930,7 @@ async def _build_referral_info(
     first_topup_bonus_kopeks = int(referral_settings.get('first_topup_bonus_kopeks') or 0)
     inviter_bonus_kopeks = int(referral_settings.get('inviter_bonus_kopeks') or 0)
     registration_bonus_kopeks = int(referral_settings.get('registration_bonus_kopeks') or 0)
+    registration_new_user_bonus_kopeks = int(referral_settings.get('registration_new_user_bonus_kopeks') or 0)
     commission_percent = float(
         get_effective_referral_commission_percent(user) if user else referral_settings.get('commission_percent') or 0
     )
@@ -2943,6 +2944,8 @@ async def _build_referral_info(
         inviter_bonus_label=settings.format_price(inviter_bonus_kopeks),
         registration_bonus_kopeks=registration_bonus_kopeks,
         registration_bonus_label=settings.format_price(registration_bonus_kopeks),
+        registration_new_user_bonus_kopeks=registration_new_user_bonus_kopeks,
+        registration_new_user_bonus_label=settings.format_price(registration_new_user_bonus_kopeks),
         commission_percent=commission_percent,
     )
 

@@ -326,6 +326,8 @@ class MiniAppReferralTerms(BaseModel):
     inviter_bonus_label: str | None = None
     registration_bonus_kopeks: int = 0
     registration_bonus_label: str | None = None
+    registration_new_user_bonus_kopeks: int = 0
+    registration_new_user_bonus_label: str | None = None
     commission_percent: float = 0.0
 
 

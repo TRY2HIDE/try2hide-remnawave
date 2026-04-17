@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database.crud.referral import create_referral_earning, get_commission_payment_count, get_user_campaign_id
 from app.database.crud.user import add_user_balance, get_user_by_id
-from app.database.models import ReferralEarning, TransactionType, User
+from app.database.models import ReferralEarning, Transaction, TransactionType, User
 from app.services.notification_delivery_service import (
     notification_delivery_service,
 )
@@ -129,6 +129,19 @@ async def _has_referral_earning(db: AsyncSession, user_id: int, referral_id: int
     return result.scalar_one_or_none() is not None
 
 
+async def _has_reward_transaction(db: AsyncSession, user_id: int, description: str) -> bool:
+    result = await db.execute(
+        select(Transaction.id)
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.type == TransactionType.REFERRAL_REWARD.value,
+            Transaction.description == description,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 def _has_post_registration_rewards(commission_percent: int) -> bool:
     return any(
         (
@@ -204,7 +217,9 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
         campaign_id = await get_user_campaign_id(db, new_user_id)
         commission_percent = get_effective_referral_commission_percent(referrer)
         registration_bonus_kopeks = max(0, settings.REFERRAL_REGISTRATION_BONUS_KOPEKS)
+        registration_new_user_bonus_kopeks = max(0, settings.REFERRAL_REGISTRATION_NEW_USER_BONUS_KOPEKS)
         has_post_registration_rewards = _has_post_registration_rewards(commission_percent)
+        new_user_bonus_description = 'Бонус за регистрацию по реферальной ссылке'
 
         pending_reward_created = False
         if has_post_registration_rewards and not await _has_referral_earning(
@@ -250,6 +265,28 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
                     registration_bonus_kopeks=registration_bonus_kopeks,
                 )
 
+        new_user_bonus_awarded = False
+        if registration_new_user_bonus_kopeks > 0 and not await _has_reward_transaction(
+            db, new_user.id, new_user_bonus_description
+        ):
+            bonus_ok = await add_user_balance(
+                db,
+                new_user,
+                registration_new_user_bonus_kopeks,
+                new_user_bonus_description,
+                transaction_type=TransactionType.REFERRAL_REWARD,
+                bot=bot,
+            )
+            if bonus_ok:
+                new_user_bonus_awarded = True
+            else:
+                logger.error(
+                    'Не удалось начислить бонус приглашенному за регистрацию',
+                    new_user_id=new_user_id,
+                    referrer_id=referrer_id,
+                    registration_new_user_bonus_kopeks=registration_new_user_bonus_kopeks,
+                )
+
         try:
             from app.services.referral_contest_service import referral_contest_service
 
@@ -262,6 +299,12 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
                 f'🎉 <b>Добро пожаловать!</b>\n\n'
                 f'Вы перешли по реферальной ссылке пользователя <b>{html.escape(referrer.full_name)}</b>!'
             )
+            if new_user_bonus_awarded:
+                referral_notification += (
+                    f'\n\n🎁 За регистрацию вам уже начислено '
+                    f'{settings.format_price(registration_new_user_bonus_kopeks)}.\n\n'
+                    f'💎 Средства зачислены на ваш баланс.'
+                )
             if settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS > 0:
                 referral_notification += (
                     f'\n\n💰 При первом пополнении от {settings.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS)} '
@@ -314,6 +357,7 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
             new_user_id=new_user_id,
             referrer_id=referrer_id,
             registration_bonus_awarded=registration_bonus_awarded,
+            new_user_bonus_awarded=new_user_bonus_awarded,
             pending_reward_created=pending_reward_created,
         )
         return True
