@@ -4,7 +4,7 @@ import json
 import redis.asyncio as aioredis
 import structlog
 from aiogram import Bot
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -116,6 +116,29 @@ async def _is_commission_limit_reached(db: AsyncSession, referrer_id: int, refer
     return False
 
 
+async def _has_referral_earning(db: AsyncSession, user_id: int, referral_id: int, reason: str) -> bool:
+    result = await db.execute(
+        select(ReferralEarning.id)
+        .where(
+            ReferralEarning.user_id == user_id,
+            ReferralEarning.referral_id == referral_id,
+            ReferralEarning.reason == reason,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+def _has_post_registration_rewards(commission_percent: int) -> bool:
+    return any(
+        (
+            settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS > 0,
+            settings.REFERRAL_INVITER_BONUS_KOPEKS > 0,
+            commission_percent > 0,
+        )
+    )
+
+
 async def send_referral_notification(
     bot: Bot,
     telegram_id: int | None,
@@ -179,14 +202,53 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
             return False
 
         campaign_id = await get_user_campaign_id(db, new_user_id)
-        await create_referral_earning(
-            db=db,
-            user_id=referrer_id,
-            referral_id=new_user_id,
-            amount_kopeks=0,
-            reason='referral_registration_pending',
-            campaign_id=campaign_id,
-        )
+        commission_percent = get_effective_referral_commission_percent(referrer)
+        registration_bonus_kopeks = max(0, settings.REFERRAL_REGISTRATION_BONUS_KOPEKS)
+        has_post_registration_rewards = _has_post_registration_rewards(commission_percent)
+
+        pending_reward_created = False
+        if has_post_registration_rewards and not await _has_referral_earning(
+            db, referrer_id, new_user_id, 'referral_registration_pending'
+        ):
+            await create_referral_earning(
+                db=db,
+                user_id=referrer_id,
+                referral_id=new_user_id,
+                amount_kopeks=0,
+                reason='referral_registration_pending',
+                campaign_id=campaign_id,
+            )
+            pending_reward_created = True
+
+        registration_bonus_awarded = False
+        if registration_bonus_kopeks > 0 and not await _has_referral_earning(
+            db, referrer_id, new_user_id, 'referral_registration_bonus'
+        ):
+            balance_ok = await add_user_balance(
+                db,
+                referrer,
+                registration_bonus_kopeks,
+                f'Бонус за регистрацию реферала {new_user.full_name}',
+                transaction_type=TransactionType.REFERRAL_REWARD,
+                bot=bot,
+            )
+            if balance_ok:
+                await create_referral_earning(
+                    db=db,
+                    user_id=referrer_id,
+                    referral_id=new_user_id,
+                    amount_kopeks=registration_bonus_kopeks,
+                    reason='referral_registration_bonus',
+                    campaign_id=campaign_id,
+                )
+                registration_bonus_awarded = True
+            else:
+                logger.error(
+                    'Не удалось начислить бонус за регистрацию реферала',
+                    referrer_id=referrer_id,
+                    new_user_id=new_user_id,
+                    registration_bonus_kopeks=registration_bonus_kopeks,
+                )
 
         try:
             from app.services.referral_contest_service import referral_contest_service
@@ -196,7 +258,6 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
             logger.debug('Не удалось записать конкурсную регистрацию', exc=exc)
 
         if bot:
-            commission_percent = get_effective_referral_commission_percent(referrer)
             referral_notification = (
                 f'🎉 <b>Добро пожаловать!</b>\n\n'
                 f'Вы перешли по реферальной ссылке пользователя <b>{html.escape(referrer.full_name)}</b>!'
@@ -210,24 +271,38 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
 
             inviter_notification = (
                 f'👥 <b>Новый реферал!</b>\n\n'
-                f'По вашей ссылке зарегистрировался пользователь <b>{html.escape(new_user.full_name)}</b>!\n\n'
-                f'💰 Когда он пополнит баланс от {settings.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS)}, '
+                f'По вашей ссылке зарегистрировался пользователь <b>{html.escape(new_user.full_name)}</b>!'
             )
-            if settings.REFERRAL_INVITER_BONUS_KOPEKS > 0 and commission_percent > 0:
+
+            if registration_bonus_awarded:
                 inviter_notification += (
-                    f'вы получите {settings.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS)} + '
-                    f'{commission_percent}% от суммы пополнения.\n\n'
+                    f'\n\n🎁 За регистрацию уже начислено: '
+                    f'{settings.format_price(registration_bonus_kopeks)}.\n\n'
+                    f'💎 Средства зачислены на ваш баланс.'
                 )
-            elif settings.REFERRAL_INVITER_BONUS_KOPEKS > 0:
+
+            if has_post_registration_rewards:
                 inviter_notification += (
-                    f'вы получите {settings.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS)}.\n\n'
+                    f'\n\n💰 Когда он пополнит баланс от '
+                    f'{settings.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS)}, '
                 )
-            elif commission_percent > 0:
-                inviter_notification += f'вы получите {commission_percent}% от суммы.\n\n'
-            else:
-                inviter_notification += 'вы получите уведомление.\n\n'
-            if commission_percent > 0:
+                if settings.REFERRAL_INVITER_BONUS_KOPEKS > 0 and commission_percent > 0:
+                    inviter_notification += (
+                        f'вы получите {settings.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS)} + '
+                        f'{commission_percent}% от суммы пополнения.'
+                    )
+                elif settings.REFERRAL_INVITER_BONUS_KOPEKS > 0:
+                    inviter_notification += (
+                        f'вы получите {settings.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS)}.'
+                    )
+                elif commission_percent > 0:
+                    inviter_notification += f'вы получите {commission_percent}% от суммы.'
+                else:
+                    inviter_notification += 'вы получите уведомление.'
+
+            if commission_percent > 0 and has_post_registration_rewards:
                 inviter_notification += (
+                    f'\n\n'
                     f'📈 С каждого последующего пополнения вы будете получать {commission_percent}% комиссии.'
                 )
             await send_referral_notification(
@@ -235,9 +310,11 @@ async def process_referral_registration(db: AsyncSession, new_user_id: int, refe
             )
 
         logger.info(
-            '✅ Зарегистрирован реферал для . Бонусы будут выданы после пополнения.',
+            '✅ Обработана реферальная регистрация',
             new_user_id=new_user_id,
             referrer_id=referrer_id,
+            registration_bonus_awarded=registration_bonus_awarded,
+            pending_reward_created=pending_reward_created,
         )
         return True
 

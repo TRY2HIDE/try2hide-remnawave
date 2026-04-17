@@ -49,6 +49,7 @@ class PartnerSettingsResponse(BaseModel):
     withdrawal_requisites_text: str
     partner_section_visible: bool
     referral_program_enabled: bool
+    registration_bonus_kopeks: int
 
 
 class PartnerSettingsUpdateRequest(BaseModel):
@@ -58,6 +59,7 @@ class PartnerSettingsUpdateRequest(BaseModel):
     withdrawal_requisites_text: str | None = Field(None, max_length=2000)
     partner_section_visible: bool | None = None
     referral_program_enabled: bool | None = None
+    registration_bonus_kopeks: int | None = Field(None, ge=0, le=100_000_000)
 
 
 def _build_partner_settings_response() -> PartnerSettingsResponse:
@@ -68,6 +70,7 @@ def _build_partner_settings_response() -> PartnerSettingsResponse:
         withdrawal_requisites_text=settings.REFERRAL_WITHDRAWAL_REQUISITES_TEXT,
         partner_section_visible=settings.REFERRAL_PARTNER_SECTION_VISIBLE,
         referral_program_enabled=settings.REFERRAL_PROGRAM_ENABLED,
+        registration_bonus_kopeks=settings.REFERRAL_REGISTRATION_BONUS_KOPEKS,
     )
 
 
@@ -101,6 +104,8 @@ async def update_partner_settings(
         settings.REFERRAL_PARTNER_SECTION_VISIBLE = request.partner_section_visible
     if request.referral_program_enabled is not None:
         settings.REFERRAL_PROGRAM_ENABLED = request.referral_program_enabled
+    if request.registration_bonus_kopeks is not None:
+        settings.REFERRAL_REGISTRATION_BONUS_KOPEKS = request.registration_bonus_kopeks
 
     # Persist to .env file
     try:
@@ -125,6 +130,8 @@ async def update_partner_settings(
                 updates['REFERRAL_PARTNER_SECTION_VISIBLE'] = str(request.partner_section_visible).lower()
             if request.referral_program_enabled is not None:
                 updates['REFERRAL_PROGRAM_ENABLED'] = str(request.referral_program_enabled).lower()
+            if request.registration_bonus_kopeks is not None:
+                updates['REFERRAL_REGISTRATION_BONUS_KOPEKS'] = str(request.registration_bonus_kopeks)
 
             new_lines = []
             updated_keys: set[str] = set()

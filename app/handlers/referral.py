@@ -87,36 +87,63 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
         + texts.t('REFERRAL_REWARDS_HEADER', '🎁 <b>Как работают награды:</b>')
     )
 
+    reward_lines: list[str] = []
+
+    if settings.REFERRAL_REGISTRATION_BONUS_KOPEKS > 0:
+        reward_lines.append(
+            texts.t(
+                'REFERRAL_REWARD_REGISTRATION',
+                '• Вы получаете сразу за регистрацию реферала: <b>{bonus}</b>',
+            ).format(bonus=texts.format_price(settings.REFERRAL_REGISTRATION_BONUS_KOPEKS))
+        )
+
     if settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS > 0:
-        referral_text += '\n' + texts.t(
-            'REFERRAL_REWARD_NEW_USER',
-            '• Новый пользователь получает: <b>{bonus}</b> при первом пополнении от <b>{minimum}</b>',
-        ).format(
-            bonus=texts.format_price(settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS),
-            minimum=texts.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS),
+        reward_lines.append(
+            texts.t(
+                'REFERRAL_REWARD_NEW_USER',
+                '• Новый пользователь получает: <b>{bonus}</b> при первом пополнении от <b>{minimum}</b>',
+            ).format(
+                bonus=texts.format_price(settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS),
+                minimum=texts.format_price(settings.REFERRAL_MINIMUM_TOPUP_KOPEKS),
+            )
         )
 
     if settings.REFERRAL_INVITER_BONUS_KOPEKS > 0:
-        referral_text += '\n' + texts.t(
-            'REFERRAL_REWARD_INVITER',
-            '• Вы получаете при первом пополнении реферала: <b>{bonus}</b>',
-        ).format(bonus=texts.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS))
-
-    if settings.REFERRAL_MAX_COMMISSION_PAYMENTS > 0:
-        commission_line = texts.t(
-            'REFERRAL_REWARD_COMMISSION_LIMITED',
-            '• Комиссия с первых {max_payments} пополнений реферала: <b>{percent}%</b>',
-        ).format(
-            percent=get_effective_referral_commission_percent(db_user),
-            max_payments=settings.REFERRAL_MAX_COMMISSION_PAYMENTS,
+        reward_lines.append(
+            texts.t(
+                'REFERRAL_REWARD_INVITER',
+                '• Вы получаете при первом пополнении реферала: <b>{bonus}</b>',
+            ).format(bonus=texts.format_price(settings.REFERRAL_INVITER_BONUS_KOPEKS))
         )
-    else:
-        commission_line = texts.t(
-            'REFERRAL_REWARD_COMMISSION',
-            '• Комиссия с каждого пополнения реферала: <b>{percent}%</b>',
-        ).format(percent=get_effective_referral_commission_percent(db_user))
 
-    referral_text += '\n' + commission_line + '\n\n'
+    commission_percent = get_effective_referral_commission_percent(db_user)
+    if commission_percent > 0:
+        if settings.REFERRAL_MAX_COMMISSION_PAYMENTS > 0:
+            reward_lines.append(
+                texts.t(
+                    'REFERRAL_REWARD_COMMISSION_LIMITED',
+                    '• Комиссия с первых {max_payments} пополнений реферала: <b>{percent}%</b>',
+                ).format(
+                    percent=commission_percent,
+                    max_payments=settings.REFERRAL_MAX_COMMISSION_PAYMENTS,
+                )
+            )
+        else:
+            reward_lines.append(
+                texts.t(
+                    'REFERRAL_REWARD_COMMISSION',
+                    '• Комиссия с каждого пополнения реферала: <b>{percent}%</b>',
+                ).format(percent=commission_percent)
+            )
+
+    if reward_lines:
+        referral_text += '\n' + '\n'.join(reward_lines) + '\n\n'
+    else:
+        referral_text += '\n' + texts.t(
+            'REFERRAL_REWARD_NONE',
+            '• Дополнительные награды сейчас отключены.',
+        )
+        referral_text += '\n\n'
 
     # Show bot link
     referral_text += (
@@ -153,6 +180,10 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
             )
             for earning in meaningful_earnings[:3]:
                 reason_text = {
+                    'referral_registration_bonus': texts.t(
+                        'REFERRAL_EARNING_REASON_REGISTRATION_BONUS',
+                        '✨ Бонус за регистрацию',
+                    ),
                     'referral_first_topup': texts.t(
                         'REFERRAL_EARNING_REASON_FIRST_TOPUP',
                         '🎉 Первое пополнение',
@@ -188,6 +219,20 @@ async def show_referral_info(callback: types.CallbackQuery, db_user: User, db: A
             )
             + '\n'
         )
+
+        if 'referral_registration_bonus' in summary['earnings_by_type']:
+            data = summary['earnings_by_type']['referral_registration_bonus']
+            if data['total_amount_kopeks'] > 0:
+                referral_text += (
+                    texts.t(
+                        'REFERRAL_EARNINGS_REGISTRATIONS',
+                        '• Бонусы за регистрации: <b>{count}</b> ({amount})',
+                    ).format(
+                        count=data['count'],
+                        amount=texts.format_price(data['total_amount_kopeks']),
+                    )
+                    + '\n'
+                )
 
         if 'referral_first_topup' in summary['earnings_by_type']:
             data = summary['earnings_by_type']['referral_first_topup']

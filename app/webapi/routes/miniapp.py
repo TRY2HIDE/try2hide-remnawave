@@ -199,6 +199,20 @@ from ..schemas.miniapp import (
 
 logger = structlog.get_logger(__name__)
 
+
+def _format_referral_reason(reason: str | None) -> str | None:
+    if reason is None:
+        return None
+
+    reason_names = {
+        'referral_registration_bonus': 'Бонус за регистрацию',
+        'referral_first_topup': 'Бонус за первое пополнение',
+        'referral_commission_topup': 'Комиссия с пополнения',
+        'referral_commission': 'Комиссия с покупки',
+        'referral_registration_pending': 'Ожидает первое пополнение',
+    }
+    return reason_names.get(reason, reason)
+
 router = APIRouter()
 
 promo_code_service = PromoCodeService()
@@ -2915,6 +2929,7 @@ async def _build_referral_info(
     minimum_topup_kopeks = int(referral_settings.get('minimum_topup_kopeks') or 0)
     first_topup_bonus_kopeks = int(referral_settings.get('first_topup_bonus_kopeks') or 0)
     inviter_bonus_kopeks = int(referral_settings.get('inviter_bonus_kopeks') or 0)
+    registration_bonus_kopeks = int(referral_settings.get('registration_bonus_kopeks') or 0)
     commission_percent = float(
         get_effective_referral_commission_percent(user) if user else referral_settings.get('commission_percent') or 0
     )
@@ -2926,6 +2941,8 @@ async def _build_referral_info(
         first_topup_bonus_label=settings.format_price(first_topup_bonus_kopeks),
         inviter_bonus_kopeks=inviter_bonus_kopeks,
         inviter_bonus_label=settings.format_price(inviter_bonus_kopeks),
+        registration_bonus_kopeks=registration_bonus_kopeks,
+        registration_bonus_label=settings.format_price(registration_bonus_kopeks),
         commission_percent=commission_percent,
     )
 
@@ -2955,6 +2972,7 @@ async def _build_referral_info(
                     amount_kopeks=amount,
                     amount_label=settings.format_price(amount),
                     reason=earning.get('reason'),
+                    reason_label=_format_referral_reason(earning.get('reason')),
                     referral_name=earning.get('referral_name'),
                     created_at=earning.get('created_at'),
                 )

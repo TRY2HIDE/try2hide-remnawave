@@ -35,6 +35,17 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix='/referral', tags=['Cabinet Referral'])
 
 
+def _format_referral_reason(reason: str | None) -> str:
+    reason_names = {
+        'referral_registration_bonus': 'Бонус за регистрацию',
+        'referral_first_topup': 'Бонус за первое пополнение',
+        'referral_commission_topup': 'Комиссия с пополнения',
+        'referral_commission': 'Комиссия с покупки',
+        'referral_registration_pending': 'Ожидает первое пополнение',
+    }
+    return reason_names.get(reason or '', reason or 'Referral commission')
+
+
 @router.get('', response_model=ReferralInfoResponse)
 async def get_referral_info(
     user: User = Depends(get_current_cabinet_user),
@@ -216,6 +227,7 @@ async def get_referral_earnings(
                 amount_kopeks=e.amount_kopeks,
                 amount_rubles=e.amount_kopeks / 100,
                 reason=e.reason or 'Referral commission',
+                reason_label=_format_referral_reason(e.reason),
                 referral_username=referral_user.username if referral_user else None,
                 referral_first_name=referral_user.first_name if referral_user else None,
                 campaign_name=campaign.name if campaign else None,
@@ -248,6 +260,8 @@ async def get_referral_terms():
         first_topup_bonus_rubles=settings.REFERRAL_FIRST_TOPUP_BONUS_KOPEKS / 100,
         inviter_bonus_kopeks=settings.REFERRAL_INVITER_BONUS_KOPEKS,
         inviter_bonus_rubles=settings.REFERRAL_INVITER_BONUS_KOPEKS / 100,
+        registration_bonus_kopeks=settings.REFERRAL_REGISTRATION_BONUS_KOPEKS,
+        registration_bonus_rubles=settings.REFERRAL_REGISTRATION_BONUS_KOPEKS / 100,
         max_commission_payments=settings.REFERRAL_MAX_COMMISSION_PAYMENTS,
         partner_section_visible=settings.REFERRAL_PARTNER_SECTION_VISIBLE,
     )

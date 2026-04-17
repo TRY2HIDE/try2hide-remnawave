@@ -664,6 +664,7 @@ class ReferralWithdrawalService:
         if 'earnings_by_reason' in details:
             text += '\n📊 <b>Источники дохода:</b>\n'
             reason_names = {
+                'referral_registration_bonus': 'Бонус за регистрацию',
                 'referral_first_topup': 'Бонус за 1-е пополнение',
                 'referral_commission_topup': 'Комиссия с пополнений',
                 'referral_commission': 'Комиссия с покупок',

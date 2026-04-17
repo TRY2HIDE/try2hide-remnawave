@@ -324,6 +324,8 @@ class MiniAppReferralTerms(BaseModel):
     first_topup_bonus_label: str | None = None
     inviter_bonus_kopeks: int = 0
     inviter_bonus_label: str | None = None
+    registration_bonus_kopeks: int = 0
+    registration_bonus_label: str | None = None
     commission_percent: float = 0.0
 
 
@@ -342,6 +344,7 @@ class MiniAppReferralRecentEarning(BaseModel):
     amount_kopeks: int = 0
     amount_label: str | None = None
     reason: str | None = None
+    reason_label: str | None = None
     referral_name: str | None = None
     created_at: datetime | None = None
 
